@@ -5,6 +5,9 @@
 //   lob_cli verify FILE                                 replay on every book, compare hashes
 //   lob_cli stream                                      binary events on stdin, binary output on stdout
 //   lob_cli demo   --out DIR [--events N] [--seed S]    JSON for the web visualizer
+#include <unistd.h>
+
+#include <cerrno>
 #include <cstdio>
 #include <cstdlib>
 #include <fstream>
@@ -168,9 +171,14 @@ int cmd_stream() {
             off = 0;
         }
         std::uint8_t tmp[1 << 16];
-        const std::size_t n = std::fread(tmp, 1, sizeof tmp, stdin);
+        // read(2), not fread: fread would block until the whole buffer is full,
+        // and the client is waiting for our reply to a much shorter batch.
+        ssize_t n;
+        do n = ::read(STDIN_FILENO, tmp, sizeof tmp);
+        while (n < 0 && errno == EINTR);
+        if (n <= 0) return false;
         buf.insert(buf.end(), tmp, tmp + n);
-        return n > 0;
+        return true;
     };
     BookConfig cfg;
     while (buf.size() < proto::kHeaderSize)
