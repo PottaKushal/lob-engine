@@ -101,8 +101,8 @@ TYPED_TEST(Differential, WideBookMatchesReference) {
 TEST(FlowGenerator, SameSeedSameStream) {
     FlowGenerator g1(FlowConfig::adversarial(5)), g2(FlowConfig::adversarial(5)), g3(FlowConfig::adversarial(6));
     const auto a = g1.generate(20000), b = g2.generate(20000), c = g3.generate(20000);
-    EXPECT_EQ(a, b);
-    EXPECT_NE(a, c);
+    EXPECT_TRUE(a == b);
+    EXPECT_FALSE(a == c);
 }
 
 // Golden hash pins the workload and the matching rules across platforms and

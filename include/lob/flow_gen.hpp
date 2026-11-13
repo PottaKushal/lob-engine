@@ -36,6 +36,7 @@ struct FlowConfig {
     static FlowConfig realistic(std::uint64_t seed = 1) {
         FlowConfig c;
         c.seed = seed;
+        c.book = BookConfig{1 << 16, 1u << 17};
         return c;
     }
     // Tiny price grid, tiny capacity, few owners, every order type, invalid input.
@@ -84,6 +85,13 @@ public:
         else if ((r -= cfg_.w_fok) < cfg_.w_postonly) e = make_new(OrderType::PostOnly);
         else e = make_invalid();
         e.ts = ts_;
+        // Keep only the fields the wire format carries for this kind of message.
+        if (e.kind != InKind::New) {
+            e.owner = 0;
+            e.side = Side::Buy;
+            e.type = OrderType::Limit;
+            if (e.kind == InKind::Cancel) e.price = 0, e.qty = 0;
+        }
 
         shadow_.apply(e, [](const OutEvent&) {});
         if (e.kind == InKind::New && e.id == next_id_ - 1 && shadow_.open_qty(e.id) > 0) live_.push_back(e.id);

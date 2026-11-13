@@ -9,6 +9,6 @@ FetchContent_MakeAvailable(googletest)
 include(GoogleTest)
 
 file(GLOB LOB_TEST_SOURCES CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/test_*.cpp)
-add_executable(lob_tests ${LOB_TEST_SOURCES})
+add_executable(lob_tests ${LOB_TEST_SOURCES} ${CMAKE_SOURCE_DIR}/fuzz/fuzz_parser.cpp)
 target_link_libraries(lob_tests PRIVATE lob GTest::gtest_main)
 gtest_discover_tests(lob_tests DISCOVERY_TIMEOUT 60)

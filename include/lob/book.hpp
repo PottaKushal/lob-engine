@@ -7,7 +7,7 @@
 //  * Id lookup: preallocated open-addressing hash table (linear probing,
 //    backward-shift deletion, so there are no tombstones).
 //  * Best prices are cached. When the best level empties the next one is
-//    found by a linear scan, or by a bitmap of non-empty levels when
+//    found by a linear scan, or by a two-level bitmap of non-empty levels when
 //    UseBitmap is true (measured in BENCHMARKS.md).
 #pragma once
 
@@ -82,8 +82,11 @@ public:
         : cfg_(cfg), ids_(cfg.max_orders), pool_(cfg.max_orders) {
         const std::size_t n = static_cast<std::size_t>(cfg.max_price) + 2;
         for (auto& l : levels_) l.assign(n, Level{});
-        if (UseBitmap)
-            for (auto& b : bits_) b.assign((n + 63) / 64, 0);
+        if (UseBitmap) {
+            const std::size_t words = (n + 63) / 64;
+            for (auto& b : bits_) b.assign(words, 0);
+            for (auto& b : sum_) b.assign((words + 63) / 64, 0);
+        }
         best_[0] = 0;                  // no bid
         best_[1] = cfg.max_price + 1;  // no ask
         for (std::uint32_t i = 0; i < cfg.max_orders; ++i) pool_[i].next = i + 1 < cfg.max_orders ? i + 1 : kNil;
@@ -231,33 +234,63 @@ private:
         return side == Side::Buy ? best_[1] <= limit : best_[0] >= limit;
     }
 
-    // --- bitmap of non-empty levels (UseBitmap only) ------------------------
+    // --- two-level bitmap of non-empty levels (UseBitmap only) ---------------
+    // bits_: one bit per price. sum_: one bit per 64-bit word of bits_, set when
+    // that word is non-zero. Finding the next non-empty level is then at most
+    // one masked word, a scan of the small summary (16 words for 65,536
+    // prices), and one more word: effectively constant time for any gap.
     void set_bit(Side s, Price p) noexcept {
-        bits_[idx(s)][static_cast<std::size_t>(p) >> 6] |= 1ull << (p & 63);
+        const std::size_t w = static_cast<std::size_t>(p) >> 6;
+        bits_[idx(s)][w] |= 1ull << (p & 63);
+        sum_[idx(s)][w >> 6] |= 1ull << (w & 63);
     }
     void clear_bit(Side s, Price p) noexcept {
-        bits_[idx(s)][static_cast<std::size_t>(p) >> 6] &= ~(1ull << (p & 63));
+        const std::size_t w = static_cast<std::size_t>(p) >> 6;
+        bits_[idx(s)][w] &= ~(1ull << (p & 63));
+        if (bits_[idx(s)][w] == 0) sum_[idx(s)][w >> 6] &= ~(1ull << (w & 63));
     }
-    Price next_above(Side s, Price p) const noexcept {  // lowest non-empty price > p
+    static Price lowest(std::size_t word_index, std::uint64_t word) noexcept {
+        return static_cast<Price>((word_index << 6) + static_cast<std::size_t>(std::countr_zero(word)));
+    }
+    static Price highest(std::size_t word_index, std::uint64_t word) noexcept {
+        return static_cast<Price>((word_index << 6) + 63 - static_cast<std::size_t>(std::countl_zero(word)));
+    }
+    Price next_above(Side s, Price p) const noexcept {  // lowest non-empty price > p, or max_price + 1
         const auto& b = bits_[idx(s)];
+        const auto& sm = sum_[idx(s)];
         const std::size_t i = static_cast<std::size_t>(p) + 1;
-        std::size_t w = i >> 6;
-        std::uint64_t word = b[w] & (~0ull << (i & 63));
+        const std::size_t w = i >> 6;
+        if (const std::uint64_t word = b[w] & (~0ull << (i & 63))) return lowest(w, word);
+        const std::size_t v = w + 1;  // first whole word to consider
+        std::size_t sw = v >> 6;
+        if (sw >= sm.size()) return cfg_.max_price + 1;
+        std::uint64_t sword = sm[sw] & (~0ull << (v & 63));
         for (;;) {
-            if (word) return static_cast<Price>((w << 6) + static_cast<std::size_t>(std::countr_zero(word)));
-            if (++w == b.size()) return cfg_.max_price + 1;
-            word = b[w];
+            if (sword) {
+                const std::size_t w2 = (sw << 6) + static_cast<std::size_t>(std::countr_zero(sword));
+                return lowest(w2, b[w2]);
+            }
+            if (++sw == sm.size()) return cfg_.max_price + 1;
+            sword = sm[sw];
         }
     }
-    Price next_below(Side s, Price p) const noexcept {  // highest non-empty price < p
+    Price next_below(Side s, Price p) const noexcept {  // highest non-empty price < p, or 0
         const auto& b = bits_[idx(s)];
+        const auto& sm = sum_[idx(s)];
         const std::size_t i = static_cast<std::size_t>(p) - 1;  // p >= 1 always
-        std::size_t w = i >> 6;
-        std::uint64_t word = b[w] & (~0ull >> (63 - (i & 63)));
+        const std::size_t w = i >> 6;
+        if (const std::uint64_t word = b[w] & (~0ull >> (63 - (i & 63)))) return highest(w, word);
+        if (w == 0) return 0;
+        const std::size_t v = w - 1;  // last whole word to consider
+        std::size_t sw = v >> 6;
+        std::uint64_t sword = sm[sw] & (~0ull >> (63 - (v & 63)));
         for (;;) {
-            if (word) return static_cast<Price>((w << 6) + 63 - static_cast<std::size_t>(std::countl_zero(word)));
-            if (w == 0) return 0;
-            word = b[--w];
+            if (sword) {
+                const std::size_t w2 = (sw << 6) + 63 - static_cast<std::size_t>(std::countl_zero(sword));
+                return highest(w2, b[w2]);
+            }
+            if (sw == 0) return 0;
+            sword = sm[--sw];
         }
     }
 
@@ -392,6 +425,7 @@ private:
     std::vector<Node> pool_;
     std::vector<Level> levels_[2];
     std::vector<std::uint64_t> bits_[2];
+    std::vector<std::uint64_t> sum_[2];
     Price best_[2];
     std::uint32_t free_ = kNil;
     std::uint32_t live_ = 0;
