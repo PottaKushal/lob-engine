@@ -1,0 +1,39 @@
+{
+  "version": 6,
+  "cmakeMinimumRequired": { "major": 3, "minor": 25, "patch": 0 },
+  "configurePresets": [
+    { "name": "base", "hidden": true, "binaryDir": "${sourceDir}/build/${presetName}" },
+    { "name": "release", "inherits": "base", "displayName": "Release (-O3)",
+      "cacheVariables": { "CMAKE_BUILD_TYPE": "Release" } },
+    { "name": "debug", "inherits": "base", "displayName": "Debug",
+      "cacheVariables": { "CMAKE_BUILD_TYPE": "Debug" } },
+    { "name": "asan", "inherits": "base", "displayName": "AddressSanitizer + UBSan",
+      "cacheVariables": { "CMAKE_BUILD_TYPE": "RelWithDebInfo", "LOB_SANITIZE": "address,undefined" } },
+    { "name": "tsan", "inherits": "base", "displayName": "ThreadSanitizer",
+      "cacheVariables": { "CMAKE_BUILD_TYPE": "RelWithDebInfo", "LOB_SANITIZE": "thread" } },
+    { "name": "fuzz", "inherits": "base", "displayName": "libFuzzer target (LLVM clang only)",
+      "cacheVariables": { "CMAKE_BUILD_TYPE": "RelWithDebInfo", "LOB_BUILD_FUZZ": "ON", "LOB_BUILD_TESTS": "OFF",
+                          "CMAKE_CXX_COMPILER": "clang++" } }
+  ],
+  "buildPresets": [
+    { "name": "release", "configurePreset": "release", "jobs": 8 },
+    { "name": "debug", "configurePreset": "debug", "jobs": 8 },
+    { "name": "asan", "configurePreset": "asan", "jobs": 8 },
+    { "name": "tsan", "configurePreset": "tsan", "jobs": 8 },
+    { "name": "fuzz", "configurePreset": "fuzz", "jobs": 8 }
+  ],
+  "testPresets": [
+    { "name": "release", "configurePreset": "release", "output": { "outputOnFailure": true } },
+    { "name": "debug", "configurePreset": "debug", "output": { "outputOnFailure": true } },
+    { "name": "asan", "configurePreset": "asan", "output": { "outputOnFailure": true },
+      "environment": { "LOB_DIFF_EVENTS": "150000" } },
+    { "name": "tsan", "configurePreset": "tsan", "output": { "outputOnFailure": true },
+      "environment": { "LOB_DIFF_EVENTS": "150000" } }
+  ],
+  "workflowPresets": [
+    { "name": "release", "steps": [ { "type": "configure", "name": "release" }, { "type": "build", "name": "release" }, { "type": "test", "name": "release" } ] },
+    { "name": "debug", "steps": [ { "type": "configure", "name": "debug" }, { "type": "build", "name": "debug" }, { "type": "test", "name": "debug" } ] },
+    { "name": "asan", "steps": [ { "type": "configure", "name": "asan" }, { "type": "build", "name": "asan" }, { "type": "test", "name": "asan" } ] },
+    { "name": "tsan", "steps": [ { "type": "configure", "name": "tsan" }, { "type": "build", "name": "tsan" }, { "type": "test", "name": "tsan" } ] }
+  ]
+}

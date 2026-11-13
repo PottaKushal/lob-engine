@@ -1,0 +1,15 @@
+Checks: >
+  -*,
+  bugprone-*,
+  performance-*,
+  concurrency-*,
+  cppcoreguidelines-init-variables,
+  cppcoreguidelines-slicing,
+  misc-const-correctness,
+  modernize-use-nullptr,
+  modernize-use-override,
+  readability-container-size-empty,
+  -bugprone-easily-swappable-parameters,
+  -bugprone-narrowing-conversions
+WarningsAsErrors: ''
+HeaderFilterRegex: 'include/lob/.*'
