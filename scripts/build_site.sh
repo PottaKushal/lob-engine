@@ -20,7 +20,11 @@ cp web/index.html web/app.js web/styles.css _site/
 cp docs/img/*.png _site/ 2>/dev/null || true
 
 ./build/release/tools/lob_cli demo --events 150000 --every 200 --depth 12 --out _site/data/replay.json
-./build/release/bench/lob_bench $QUICK --json _site/data/bench-live.json >/dev/null
+# The build machine's own benchmark run. Set SKIP_LIVE_BENCH=1 when building on a machine
+# whose results are already committed under results/ (avoids a duplicate data set).
+if [[ -z "${SKIP_LIVE_BENCH:-}" ]]; then
+  ./build/release/bench/lob_bench $QUICK --json _site/data/bench-live.json >/dev/null
+fi
 cp results/bench-*.json _site/data/
 "$PY" python/run_backtest.py --cli build/release/tools/lob_cli --seeds "${SEEDS:-30}" --horizon 3600 --out _site/data >/dev/null
 

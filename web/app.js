@@ -182,8 +182,8 @@ function renderBench() {
     + `so values near the resolution are quantised${e.clock_resolution_ns > 10 ? " and a p50 of 0 means \"below one clock tick\"" : ""}. `
     + "Throughput above is measured separately, without per-event clock calls. Tail values on a desktop OS include scheduler noise.";
   bars($("wirebars"), [
-    { name: "1 thread", value: bench.wire.serial_mps.median, text: num(bench.wire.serial_mps.median, 2), sub: "M msgs/s" },
-    { name: "3 threads, 2 queues", value: bench.wire.pipeline_mps.median, text: num(bench.wire.pipeline_mps.median, 2), sub: "M msgs/s" },
+    { name: "1 thread", value: bench.wire.serial_mps.median, text: num(bench.wire.serial_mps.median, 2), sub: "(median)" },
+    { name: "3 threads, 2 queues", value: bench.wire.pipeline_mps.median, text: num(bench.wire.pipeline_mps.median, 2), sub: "(median)" },
   ]);
   table($("paced-table"), ["Msgs/s", "p50", "p99", "p99.9", "p99.99", "max"], bench.pipeline_latency.map((p) => {
     const l = p.latency_ns;
