@@ -40,3 +40,11 @@ Smaller and correct beats larger and unfinished.
 1. WebAssembly build of the engine for the browser.
 2. Extra backtester features (Hawkes arrivals, public data adapter).
 3. Never cut: tests, benchmarks, docs.
+
+## Outcome
+
+All six milestones were completed, including the WebAssembly stretch goal. Not done: the Hawkes flow
+variant exists but was not used for reported results, and no public market-data adapter was written (both
+were on the cut list). The GitHub Actions workflows are written and syntax-checked but were not pushed by
+the build session, because its token lacked the `workflow` scope; `scripts/enable_ci.sh` pushes them.
+Until then the demo is published from the `gh-pages` branch by `scripts/publish_pages.sh`.
