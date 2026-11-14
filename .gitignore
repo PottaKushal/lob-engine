@@ -7,3 +7,4 @@ __pycache__/
 web/data/
 *.profraw
 crash-*
+_site/

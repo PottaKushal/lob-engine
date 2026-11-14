@@ -4,7 +4,7 @@
 //   lob_cli run    FILE [--trades T.csv] [--snapshots S.jsonl --every K --depth D]
 //   lob_cli verify FILE                                 replay on every book, compare hashes
 //   lob_cli stream                                      binary events on stdin, binary output on stdout
-//   lob_cli demo   --out DIR [--events N] [--seed S]    JSON for the web visualizer
+//   lob_cli demo   --out FILE [--events N] [--every K] [--depth D]   replay frames for the web visualizer
 #include <unistd.h>
 
 #include <cerrno>
@@ -219,6 +219,47 @@ int cmd_stream() {
     return 0;
 }
 
+// Replay frames for the web visualizer: depth snapshots plus the trades between them.
+int cmd_demo(const Args& a) {
+    if (a.out.empty()) die("demo needs --out FILE");
+    FlowConfig cfg = FlowConfig::realistic(a.seed);
+    cfg.book = BookConfig{20000, 1u << 15};
+    cfg.target_live = 2500;
+    cfg.place_ppm = 110000;
+    cfg.max_dist = 80;
+    cfg.mid_move_ppm = 60000;
+    const std::size_t every = a.every ? a.every : 200;
+    FlowGenerator gen(cfg);
+    Book book(cfg.book);
+    std::FILE* f = std::fopen(a.out.c_str(), "w");
+    if (!f) die("cannot write " + a.out);
+    std::fprintf(f, "{\"synthetic\":true,\"tick\":0.01,\"every\":%zu,\"depth\":%d,\"seed\":%llu,\"frames\":[", every, a.depth,
+                 static_cast<unsigned long long>(a.seed));
+    std::vector<OutEvent> trades;
+    std::size_t n_trades = 0, frames = 0;
+    for (std::size_t i = 1; i <= a.events; ++i) {
+        book.apply(gen.next(), [&](const OutEvent& o) {
+            if (o.kind == OutKind::Trade) { trades.push_back(o); ++n_trades; }
+        });
+        if (i % every != 0) continue;
+        if (i <= 20 * every) { trades.clear(); continue; }  // let the book fill before recording
+        std::fprintf(f, "%s{\"b\":[", frames++ ? "," : "");
+        write_levels(f, book, Side::Buy, a.depth, ",");
+        std::fprintf(f, "],\"a\":[");
+        write_levels(f, book, Side::Sell, a.depth, ",");
+        std::fprintf(f, "],\"n\":%zu,\"t\":[", trades.size());
+        const std::size_t first = trades.size() > 6 ? trades.size() - 6 : 0;  // tape shows the latest few
+        for (std::size_t k = first; k < trades.size(); ++k)
+            std::fprintf(f, "%s[%d,%u,%d]", k > first ? "," : "", trades[k].price, trades[k].qty, static_cast<int>(trades[k].side));
+        std::fprintf(f, "]}");
+        trades.clear();
+    }
+    std::fprintf(f, "]}\n");
+    std::fclose(f);
+    std::printf("wrote %zu frames (%zu events, %zu trades) to %s\n", frames, a.events, n_trades, a.out.c_str());
+    return 0;
+}
+
 }  // namespace
 
 int main(int argc, char** argv) {
@@ -229,5 +270,6 @@ int main(int argc, char** argv) {
     if (cmd == "run") return cmd_run(a);
     if (cmd == "verify") return cmd_verify(a);
     if (cmd == "stream") return cmd_stream();
+    if (cmd == "demo") return cmd_demo(a);
     die("unknown command " + cmd);
 }

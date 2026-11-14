@@ -24,6 +24,12 @@ target_link_libraries(lob INTERFACE Threads::Threads)
 target_compile_options(lob INTERFACE -Wall -Wextra -Wpedantic -Wshadow)
 if(LOB_WERROR)
   target_compile_options(lob INTERFACE -Werror)
+  if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+    # GCC reports -Warray-bounds on the decoder when it is inlined into tests that pass
+    # deliberately short buffers, even though the length check dominates the read
+    # (ASan and the fuzzer confirm there is no over-read). Keep it visible, not fatal.
+    target_compile_options(lob INTERFACE -Wno-error=array-bounds)
+  endif()
 endif()
 if(LOB_SANITIZE)
   target_compile_options(lob INTERFACE -fsanitize=${LOB_SANITIZE} -fno-omit-frame-pointer -fno-sanitize-recover=all)
