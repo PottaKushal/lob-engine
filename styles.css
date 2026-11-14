@@ -97,6 +97,7 @@ select, input[type=number] { background: var(--surface); border: 1px solid var(-
 .bars .fill { height: 16px; background: var(--s1); border-radius: 0 4px 4px 0; min-width: 2px; flex: 0 0 auto; }
 .bars .val { font: 600 13px var(--mono); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .bars .val small { font-weight: 400; color: var(--text3); }
+@media (max-width: 760px) { .bars .val small { display: none; } .bars .brow { grid-template-columns: 104px 1fr; } }
 
 .scroll { overflow-x: auto; }
 table { border-collapse: collapse; width: 100%; font-size: 13px; font-variant-numeric: tabular-nums; }
